@@ -1,6 +1,6 @@
 # Intentionally pinned to an older base image so `snyk container test`
 # has real OS-level vulnerabilities to report, not just Python deps.
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
