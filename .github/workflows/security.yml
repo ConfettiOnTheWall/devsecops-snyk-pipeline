@@ -104,3 +104,24 @@ jobs:
 
       - name: Enforce security gate
         run: python scripts/generate_report.py --input-dir results --gate --fail-on high
+  
+  happy-face:
+    name: "Build Happy Face File"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      
+      - name: Run Happy Face Script
+        run: python scripts/happy_face.py
+      
+      - name: Upload Result
+        uses: actions/upload-artifact@v4
+        with:
+          name: happy-face
+          path: happy_face.txt
