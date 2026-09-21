@@ -6,6 +6,7 @@ WORKDIR /app
 
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN apt-get update && apt-get --only-upgrade install acl libacl1
 
 COPY app/ .
 
