@@ -1,0 +1,106 @@
+name: DevSecOps Security Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  sca-scan:
+    name: "Snyk SCA — Python dependencies"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r app/requirements.txt
+
+      - name: Run Snyk SCA scan
+        uses: snyk/actions/python@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --file=app/requirements.txt --json-file-output=sca-results.json --severity-threshold=high
+
+      - name: Upload SCA results
+        uses: actions/upload-artifact@v4
+        with:
+          name: sca-results
+          path: sca-results.json
+
+  container-scan:
+    name: "Snyk Container — Docker image"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t devsecops-snyk-demo:latest .
+
+      - name: Run Snyk container scan
+        uses: snyk/actions/docker@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: devsecops-snyk-demo:latest
+          args: --json-file-output=container-results.json --severity-threshold=high
+
+      - name: Upload container scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-results
+          path: container-results.json
+
+  iac-scan:
+    name: "Snyk IaC — Terraform"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Snyk IaC scan
+        uses: snyk/actions/iac@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --json-file-output=iac-results.json --severity-threshold=high terraform/
+
+      - name: Upload IaC scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: iac-results
+          path: iac-results.json
+
+  report-and-gate:
+    name: "Build report + enforce security gate"
+    needs: [sca-scan, container-scan, iac-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all scan results
+        uses: actions/download-artifact@v4
+        with:
+          path: results
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate consolidated report
+        run: python scripts/generate_report.py --input-dir results --output report.md
+
+      - name: Post report to job summary
+        run: cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce security gate
+        run: python scripts/generate_report.py --input-dir results --gate --fail-on high
